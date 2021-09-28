@@ -27,8 +27,8 @@ impl Keys {
             Keycode::Up => self.row_1 &= 0b11111011,
             Keycode::Left => self.row_1 &= 0b11111101,
             Keycode::Right => self.row_1 &= 0b11111110,
-            Keycode::Return => self.row_2 &= 0b11110111,
-            Keycode::Space => self.row_2 &= 0b11111011,
+            Keycode::Return => self.row_2 &= 0b11110111, // Start Button
+            Keycode::Space => self.row_2 &= 0b11111011, // Select Button
             Keycode::B => self.row_2 &= 0b11111101,
             Keycode::A => self.row_2 &= 0b11111110,
             _ => (),
@@ -41,8 +41,8 @@ impl Keys {
             Keycode::Up => self.row_1 |= 0b100,
             Keycode::Left => self.row_1 |= 0b10,
             Keycode::Right => self.row_1 |= 0b1,
-            Keycode::Return => self.row_2 |= 0b1000,
-            Keycode::Space => self.row_2 |= 0b100,
+            Keycode::Return => self.row_2 |= 0b1000, // Start Button
+            Keycode::Space => self.row_2 |= 0b100, // Select Button
             Keycode::B => self.row_2 |= 0b10,
             Keycode::A => self.row_2 |= 0b1,
             _ => (),
@@ -59,10 +59,10 @@ impl Keys {
 
     pub fn update_register(&self, bus: &mut bus::Bus) {
         let row = (bus.fetch_byte(0xFF00) & 0b110000) >> 4;
-        if row & 1 == 0 {
-            bus.set_byte(0xFF00, self.row_1 & 0xF);
+        if row & 1 == 0 { // 4 upper bits are set to 1 to keep from reading more values
+            bus.set_byte(0xFF00, (self.row_1 & 0xF) | 0b11110000); // update register with direction keys values
         } else if row & 0b10 == 0 {
-            bus.set_byte(0xFF00, self.row_2 & 0xF);
+            bus.set_byte(0xFF00, (self.row_2 & 0xF) | 0b11110000);
         }
     }
 }
@@ -73,13 +73,14 @@ fn main() {
     let scale: f32 = 2.0;
 
     let mut bus: bus::Bus = bus::Bus::new_bus(&String::from("roms/Tetris.GB"));
-    //let mut bus: bus::Bus = bus::Bus::new_bus(&String::from("roms/cpu_instrs.gb"));
+    //let mut bus: bus::Bus = bus::Bus::new_bus(&String::from("roms/11-op a,(hl).gb"));
     let mut cpu = cpu::CPU::new_cpu();
-    let mut gpu = gpu::GPU::new_gpu(x_size, y_size);
+    let mut gpu = gpu::GPU::new_gpu();
     let mut keys = Keys::new_keys();
 
     let mut debugger = debugger::Debugger::new_debugger();
-    let debug = true;
+    //debugger.set_paused(true);
+    let debug = false;
 
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();

@@ -1887,7 +1887,7 @@ fn add_bc_to_hl(cpu: &mut cpu::CPU, _: &mut bus::Bus) {
     // add BC to HL and store into HL
     let bc = cpu.bc.get_combined();
     let hl = cpu.hl.get_combined();
-    let result = bc + hl;
+    let result = bc.wrapping_add(hl);
     cpu.update_flag('c', result == 0);
     cpu.update_flag('h', bc & 0xFF + hl & 0xFF > 255);
     cpu.hl.set_word(result);
@@ -2037,14 +2037,9 @@ fn add_de_to_hl(cpu: &mut cpu::CPU, _: &mut bus::Bus) {
     // add DE to HL and store into HL
     let de = cpu.de.get_combined();
     let hl = cpu.hl.get_combined();
-    let result = de + hl;
-    if result == 0 {
-        cpu.set_flag('c');
-    }
-    if de & 0xFF + hl & 0xFF > 255 {
-        // checking half carry
-        cpu.set_flag('h');
-    }
+    let result = de.wrapping_add(hl);
+    cpu.update_flag('c', result == 0);
+    cpu.update_flag('h', (de & 0xFF) + (hl & 0xFF) > 255);
     cpu.hl.set_word(result);
     cpu.set_flag('n');
 }
@@ -2065,26 +2060,17 @@ fn dec_de(cpu: &mut cpu::CPU, _: &mut bus::Bus) {
 
 fn inc_e(cpu: &mut cpu::CPU, _: &mut bus::Bus) {
     // increment E register
-    cpu.de.low += 1;
-    if cpu.de.low == 0 {
-        cpu.set_flag('z'); // zero flag
-    }
-    if cpu.de.low & 0b1111 == 0 {
-        // if the first 4 bytes resulted in a carry
-        cpu.set_flag('h'); // set half carry flag
-    }
+    cpu.de.low = cpu.de.low.wrapping_add(1);
+    cpu.update_flag('z', cpu.de.low == 0);
+    cpu.update_flag('h', cpu.de.low & 0b1111 == 0);
     cpu.set_flag('n'); // operation was addition
 }
 
 fn dec_e(cpu: &mut cpu::CPU, _: &mut bus::Bus) {
     // decrement 8 bits register E
-    if cpu.de.low & 0b1111 == 0 {
-        cpu.set_flag('h');
-    }
-    cpu.de.low -= 1;
-    if cpu.de.low == 0 {
-        cpu.set_flag('z');
-    }
+    cpu.update_flag('h', cpu.de.low & 0b1111 == 0);
+    cpu.de.low = cpu.de.low.wrapping_sub(1);
+    cpu.update_flag('z', cpu.de.low == 0);
     cpu.clear_flag('n');
 }
 
@@ -2180,18 +2166,18 @@ fn daa(cpu: &mut cpu::CPU, _: &mut bus::Bus) {
     // bdc things
     if cpu.extract_flag('n') == false {
         if cpu.extract_flag('c') == true || cpu.af.high > 0x99 {
-            cpu.af.high += 0x60;
+            cpu.af.high = cpu.af.high.wrapping_add(0x60);
             cpu.set_flag('c');
         }
         if cpu.extract_flag('h') == true || (cpu.af.high & 0x0f) > 0x09 {
-            cpu.af.high += 0x6;
+            cpu.af.high = cpu.af.high.wrapping_add(0x6);
         }
     } else {
         if cpu.extract_flag('c') == true {
-            cpu.af.high -= 0x60;
+            cpu.af.high = cpu.af.high.wrapping_sub(0x60);
         }
         if cpu.extract_flag('h') == true {
-            cpu.af.high -= 0x6;
+            cpu.af.high = cpu.af.high.wrapping_sub(0x6);
         }
     }
 
@@ -2213,7 +2199,7 @@ fn jr_z_s8(cpu: &mut cpu::CPU, bus: &mut bus::Bus) {
 fn add_hl_to_hl(cpu: &mut cpu::CPU, _: &mut bus::Bus) {
     // add HL to HL and store into HL
     let hl = cpu.hl.get_combined();
-    let result = hl + hl;
+    let result = hl.wrapping_add(hl);
     if result == 0 {
         cpu.set_flag('c');
     }
@@ -2801,7 +2787,7 @@ fn adc_a_a(cpu: &mut cpu::CPU, _: &mut bus::Bus) {
 fn sub_b(cpu: &mut cpu::CPU, _: &mut bus::Bus) {
     // sub B to A
     cpu.set_flag('n');
-    cpu.af.high -= cpu.bc.high;
+    cpu.af.high = cpu.af.high.wrapping_sub(cpu.bc.high);
     cpu.update_flag('z', cpu.af.high == 0);
     cpu.update_flag('h', cpu.af.high & 0b1111 == 0);
     cpu.update_flag('c', cpu.bc.high > cpu.af.high);
@@ -2809,7 +2795,8 @@ fn sub_b(cpu: &mut cpu::CPU, _: &mut bus::Bus) {
 
 fn sub_c(cpu: &mut cpu::CPU, _: &mut bus::Bus) {
     cpu.set_flag('n');
-    cpu.af.high -= cpu.bc.low;
+    
+    cpu.af.high = cpu.af.high.wrapping_sub(cpu.bc.low);
     cpu.update_flag('z', cpu.af.high == 0);
     cpu.update_flag('h', cpu.af.high & 0b1111 == 0);
     cpu.update_flag('c', cpu.bc.low > cpu.af.high);
@@ -2817,7 +2804,7 @@ fn sub_c(cpu: &mut cpu::CPU, _: &mut bus::Bus) {
 
 fn sub_d(cpu: &mut cpu::CPU, _: &mut bus::Bus) {
     cpu.set_flag('n');
-    cpu.af.high -= cpu.de.high;
+    cpu.af.high = cpu.af.high.wrapping_sub(cpu.de.high);
     cpu.update_flag('z', cpu.af.high == 0);
     cpu.update_flag('h', cpu.af.high & 0b1111 == 0);
     cpu.update_flag('c', cpu.de.high > cpu.af.high);
@@ -2825,7 +2812,7 @@ fn sub_d(cpu: &mut cpu::CPU, _: &mut bus::Bus) {
 
 fn sub_e(cpu: &mut cpu::CPU, _: &mut bus::Bus) {
     cpu.set_flag('n');
-    cpu.af.high -= cpu.de.low;
+    cpu.af.high = cpu.af.high.wrapping_sub(cpu.de.low);
     cpu.update_flag('z', cpu.af.high == 0);
     cpu.update_flag('h', cpu.af.high & 0b1111 == 0);
     cpu.update_flag('c', cpu.de.low > cpu.af.high);
@@ -3191,7 +3178,7 @@ fn cp_l(cpu: &mut cpu::CPU, _: &mut bus::Bus) {
 fn cp_hl_ptr(cpu: &mut cpu::CPU, bus: &mut bus::Bus) {
     cpu.set_flag('n');
     let op = bus.fetch_byte(cpu.hl.get_combined());
-    let diff = cpu.af.high - op;
+    let diff = cpu.af.high.wrapping_sub(op);
     cpu.update_flag('z', diff == 0);
     cpu.update_flag('h', diff & 0b1111 == 0);
     cpu.update_flag('c', op > cpu.af.high);
@@ -3383,7 +3370,7 @@ fn ret_c(cpu: &mut cpu::CPU, bus: &mut bus::Bus) {
 
 fn ret_i(cpu: &mut cpu::CPU, bus: &mut bus::Bus) {
     cpu.ime = true;
-    ret(cpu, bus);
+    cpu.pc = cpu.pop_stack_d16(bus);
 }
 
 fn jp_c_a16(cpu: &mut cpu::CPU, bus: &mut bus::Bus) {
